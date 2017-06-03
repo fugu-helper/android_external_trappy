@@ -75,6 +75,7 @@ class BareTrace(object):
             the time index
         :type basetime: float
         """
+        return # HACK: Since we're not normalizing anymore after the fact
 
         if basetime is not None:
             self.basetime = basetime
