@@ -104,7 +104,9 @@ class Base(object):
         self.time_array = []
         self.comm_array = []
         self.pid_array = []
+        self.tgid_array = []
         self.cpu_array = []
+        self.callback = None
         self.parse_raw = parse_raw
 
     def finalize_object(self):
@@ -144,7 +146,7 @@ class Base(object):
 
         return ret
 
-    def append_data(self, time, comm, pid, cpu, data):
+    def append_data(self, time, comm, pid, tgid, cpu, data):
         """Append data parsed from a line to the corresponding arrays
 
         The :mod:`DataFrame` will be created from this when the whole trace
@@ -168,8 +170,33 @@ class Base(object):
         self.time_array.append(time)
         self.comm_array.append(comm)
         self.pid_array.append(pid)
+        self.tgid_array.append(tgid)
         self.cpu_array.append(cpu)
         self.data_array.append(data)
+
+	if not self.callback:
+            return
+        data_dict = self.generate_data_dict(comm, pid, cpu, data)
+        self.callback(time, data_dict)
+
+    def generate_data_dict(self, comm, pid, tgid, cpu, data_str):
+        data_dict = {"__comm": comm, "__pid": pid, "__tgid": tgid, "__cpu": cpu}
+        prev_key = None
+        for field in data_str.split():
+            if "=" not in field:
+                # Concatenation is supported only for "string" values
+                if type(data_dict[prev_key]) is not str:
+                    continue
+                data_dict[prev_key] += ' ' + field
+                continue
+            (key, value) = field.split('=', 1)
+            try:
+                value = int(value)
+            except ValueError:
+                pass
+            data_dict[key] = value
+            prev_key = key
+        return data_dict
 
     def generate_parsed_data(self):
 
@@ -180,24 +207,10 @@ class Base(object):
         check_memory_usage = True
         check_memory_count = 1
 
-        for (comm, pid, cpu, data_str) in zip(self.comm_array, self.pid_array,
-                                              self.cpu_array, self.data_array):
-            data_dict = {"__comm": comm, "__pid": pid, "__cpu": cpu}
-            prev_key = None
-            for field in data_str.split():
-                if "=" not in field:
-                    # Concatenation is supported only for "string" values
-                    if type(data_dict[prev_key]) is not str:
-                        continue
-                    data_dict[prev_key] += ' ' + field
-                    continue
-                (key, value) = field.split('=', 1)
-                try:
-                    value = int(value)
-                except ValueError:
-                    pass
-                data_dict[key] = value
-                prev_key = key
+        for (comm, pid, tgid, cpu, data_str) in zip(self.comm_array, self.pid_array,
+                                              self.tgid_array, self.cpu_array,
+                                              self.data_array):
+            data_dict = self.generate_data_dict(comm, pid, tgid, cpu, data_str)
 
             # When running out of memory, Pandas has been observed to segfault
             # rather than throwing a proper Python error.
@@ -251,6 +264,9 @@ class Base(object):
             the time index
         :type basetime: float
         """
+        # HACK: We don't normalize anymore after the fact
+        return
+
         if basetime and not self.data_frame.empty:
             self.data_frame.reset_index(inplace=True)
             self.data_frame["Time"] = self.data_frame["Time"] - basetime
