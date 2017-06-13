@@ -61,8 +61,6 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                  abs_window=(0, None), build_df=True):
         super(GenericFTrace, self).__init__(name, build_df)
 
-        self.normalized_time = normalize_time
-
         if not hasattr(self, "needs_raw_parsing"):
             self.needs_raw_parsing = False
 
@@ -219,7 +217,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
             except AttributeError:
                 continue
 
-            if self.normalized_time:
+            if self.normalize_time:
                 timestamp = timestamp - self.basetime
 
             data_str = line[data_start_idx:]
