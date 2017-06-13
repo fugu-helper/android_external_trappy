@@ -108,10 +108,11 @@ class SchedSwitch(Base):
     def __init__(self):
         super(SchedSwitch, self).__init__(parse_raw=True)
 
-    def append_data(self, time, comm, pid, cpu, data):
-        data_rep = data.replace(" ==> ", " ")
-        super(SchedSwitch, self).append_data(time, comm, pid, cpu,
-                                             data_rep)
+    def create_dataframe(self):
+        self.data_array = [line.replace(" ==> ", " ", 1)
+                           for line in self.data_array]
+
+        super(SchedSwitch, self).create_dataframe()
 
 register_ftrace_parser(SchedSwitch, "sched")
 
