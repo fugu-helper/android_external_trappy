@@ -108,9 +108,9 @@ class SchedSwitch(Base):
     def __init__(self):
         super(SchedSwitch, self).__init__(parse_raw=True)
 
-    def append_data(self, time, comm, pid, tgid, cpu, data):
+    def append_data(self, time, comm, pid, cpu, data):
         data_rep = data.replace(" ==> ", " ")
-        super(SchedSwitch, self).append_data(time, comm, pid, tgid, cpu,
+        super(SchedSwitch, self).append_data(time, comm, pid, cpu,
                                              data_rep)
 
 register_ftrace_parser(SchedSwitch, "sched")
