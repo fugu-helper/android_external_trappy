@@ -208,6 +208,7 @@ class TestBase(utils_tests.SetupDirectory):
         trace = trappy.FTrace("trace_equals.txt", events=['equals_event'])
 
         df = trace.equals_event.data_frame
+        print set(df.columns)
         self.assertSetEqual(set(df.columns),
                             set(["__comm", "__pid", "__tgid", "__cpu", "my_field"]))
         self.assertListEqual(df["my_field"].tolist(),
