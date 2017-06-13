@@ -104,7 +104,6 @@ class Base(object):
         self.time_array = []
         self.comm_array = []
         self.pid_array = []
-        self.tgid_array = []
         self.cpu_array = []
         self.callback = None
         self.parse_raw = parse_raw
@@ -146,7 +145,7 @@ class Base(object):
 
         return ret
 
-    def append_data(self, time, comm, pid, tgid, cpu, data):
+    def append_data(self, time, comm, pid, cpu, data):
         """Append data parsed from a line to the corresponding arrays
 
         The :mod:`DataFrame` will be created from this when the whole trace
@@ -170,7 +169,6 @@ class Base(object):
         self.time_array.append(time)
         self.comm_array.append(comm)
         self.pid_array.append(pid)
-        self.tgid_array.append(tgid)
         self.cpu_array.append(cpu)
         self.data_array.append(data)
 
@@ -179,8 +177,8 @@ class Base(object):
         data_dict = self.generate_data_dict(comm, pid, cpu, data)
         self.callback(time, data_dict)
 
-    def generate_data_dict(self, comm, pid, tgid, cpu, data_str):
-        data_dict = {"__comm": comm, "__pid": pid, "__tgid": tgid, "__cpu": cpu}
+    def generate_data_dict(self, comm, pid, cpu, data_str):
+        data_dict = {"__comm": comm, "__pid": pid, "__cpu": cpu}
         prev_key = None
         for field in data_str.split():
             if "=" not in field:
@@ -207,10 +205,9 @@ class Base(object):
         check_memory_usage = True
         check_memory_count = 1
 
-        for (comm, pid, tgid, cpu, data_str) in zip(self.comm_array, self.pid_array,
-                                              self.tgid_array, self.cpu_array,
-                                              self.data_array):
-            data_dict = self.generate_data_dict(comm, pid, tgid, cpu, data_str)
+        for (comm, pid, cpu, data_str) in zip(self.comm_array, self.pid_array,
+                                              self.cpu_array, self.data_array):
+            data_dict = self.generate_data_dict(comm, pid, cpu, data_str)
 
             # When running out of memory, Pandas has been observed to segfault
             # rather than throwing a proper Python error.
