@@ -95,11 +95,18 @@ class Base(object):
     :param parse_raw: If :code:`True`, raw trace data (-R option) to
         trace-cmd will be used
 
+    :param fallback: If :code:`True`, the parsing class will be used
+        only if no other candidate class's unique_word matched. subclasses
+        should override this (for ex. TracingMarkWrite uses it)
+
     This class acts as a base class for all TRAPpy events
 
     """
-    def __init__(self, parse_raw=False):
+    def __init__(self, parse_raw=False, fallback=False):
+        self.fallback = fallback
+        self.tracer = None
         self.data_frame = pd.DataFrame()
+        self.line_array = []
         self.data_array = []
         self.time_array = []
         self.comm_array = []
@@ -144,7 +151,7 @@ class Base(object):
 
         return ret
 
-    def append_data(self, time, comm, pid, cpu, data):
+    def append_data(self, time, comm, pid, cpu, line, data):
         """Append data parsed from a line to the corresponding arrays
 
         The :mod:`DataFrame` will be created from this when the whole trace
@@ -169,7 +176,27 @@ class Base(object):
         self.comm_array.append(comm)
         self.pid_array.append(pid)
         self.cpu_array.append(cpu)
+        self.line_array.append(line)
         self.data_array.append(data)
+
+    def generate_data_dict(self, data_str):
+        data_dict = {}
+        prev_key = None
+        for field in data_str.split():
+            if "=" not in field:
+                # Concatenation is supported only for "string" values
+                if type(data_dict[prev_key]) is not str:
+                    continue
+                data_dict[prev_key] += ' ' + field
+                continue
+            (key, value) = field.split('=', 1)
+            try:
+                value = int(value)
+            except ValueError:
+                pass
+            data_dict[key] = value
+            prev_key = key
+        return data_dict
 
     def generate_parsed_data(self):
 
@@ -180,24 +207,11 @@ class Base(object):
         check_memory_usage = True
         check_memory_count = 1
 
-        for (comm, pid, cpu, data_str) in zip(self.comm_array, self.pid_array,
-                                              self.cpu_array, self.data_array):
-            data_dict = {"__comm": comm, "__pid": pid, "__cpu": cpu}
-            prev_key = None
-            for field in data_str.split():
-                if "=" not in field:
-                    # Concatenation is supported only for "string" values
-                    if type(data_dict[prev_key]) is not str:
-                        continue
-                    data_dict[prev_key] += ' ' + field
-                    continue
-                (key, value) = field.split('=', 1)
-                try:
-                    value = int(value)
-                except ValueError:
-                    pass
-                data_dict[key] = value
-                prev_key = key
+        for (comm, pid, cpu, line, data_str) in zip(self.comm_array, self.pid_array,
+                                              self.cpu_array, self.line_array,
+                                              self.data_array):
+            data_dict = {"__comm": comm, "__pid": pid, "__cpu": cpu, "__line": line}
+            data_dict.update(self.generate_data_dict(data_str))
 
             # When running out of memory, Pandas has been observed to segfault
             # rather than throwing a proper Python error.
@@ -231,6 +245,7 @@ class Base(object):
         self.data_frame = pd.DataFrame(self.generate_parsed_data(), index=time_idx)
 
         self.time_array = []
+        self.line_array = []
         self.comm_array = []
         self.pid_array = []
         self.cpu_array = []

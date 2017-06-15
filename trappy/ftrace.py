@@ -46,6 +46,12 @@ def _plot_freq_hists(allfreqs, what, axis, title):
         trappy.plot_utils.plot_hist(allfreqs[actor], ax, this_title, "KHz", 20,
                              "Frequency", xlim, "default")
 
+SPECIAL_FIELDS_RE = re.compile(
+                        r"^\s*(?P<comm>.*)-(?P<pid>\d+)(?:\s+\(.*\))"\
+                        r"?\s+\[(?P<cpu>\d+)\](?:\s+....)?\s+"\
+                        r"(?P<timestamp>[0-9]+\.[0-9]+): (\w+:\s+)+(?P<data>.+)"
+)
+
 class GenericFTrace(BareTrace):
     """Generic class to parse output of FTrace.  This class is meant to be
 subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
@@ -168,56 +174,51 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                     return True
             return False
 
-        special_fields_regexp = r"^\s*(?P<comm>.*)-(?P<pid>\d+)(?:\s+\(.*\))"\
-                                r"?\s+\[(?P<cpu>\d+)\](?:\s+....)?\s+"\
-                                r"(?P<timestamp>[0-9]+\.[0-9]+):"
-        special_fields_regexp = re.compile(special_fields_regexp)
-        start_match = re.compile(r"[A-Za-z0-9_]+=")
-
         actual_trace = itertools.dropwhile(self.trace_hasnt_started(), fin)
         actual_trace = itertools.takewhile(self.trace_hasnt_finished(),
                                            actual_trace)
 
-        for line in itertools.ifilter(contains_unique_word, actual_trace):
+        for line in actual_trace:
+            if not contains_unique_word(line):
+                self.lines += 1
+                continue
             for unique_word, cls in cls_for_unique_word.iteritems():
                 if unique_word in line:
                     trace_class = cls
-                    break
+                    if not cls.fallback:
+                        break
             else:
-                raise FTraceParseError("No unique word in '{}'".format(line))
+                if not trace_class:
+                    raise FTraceParseError("No unique word in '{}'".format(line))
 
             line = line[:-1]
 
-            special_fields_match = special_fields_regexp.match(line)
-            if not special_fields_match:
-                raise FTraceParseError("Couldn't match special fields in '{}'".format(line))
-            comm = special_fields_match.group('comm')
-            pid = int(special_fields_match.group('pid'))
-            cpu = int(special_fields_match.group('cpu'))
-            timestamp = float(special_fields_match.group('timestamp'))
+            fields_match = SPECIAL_FIELDS_RE.match(line)
+            if not fields_match:
+                raise FTraceParseError("Couldn't match fields in '{}'".format(line))
+            comm = fields_match.group('comm')
+            pid = int(fields_match.group('pid'))
+            cpu = int(fields_match.group('cpu'))
+            timestamp = float(fields_match.group('timestamp'))
+            data_str = fields_match.group('data')
 
             if not self.basetime:
                 self.basetime = timestamp
 
             if (timestamp < window[0] + self.basetime) or \
                (timestamp < abs_window[0]):
+                self.lines += 1
                 continue
 
             if (window[1] and timestamp > window[1] + self.basetime) or \
                (abs_window[1] and timestamp > abs_window[1]):
                 return
 
-            try:
-                data_start_idx =  start_match.search(line).start()
-            except AttributeError:
-                continue
-
-            data_str = line[data_start_idx:]
-
             # Remove empty arrays from the trace
             data_str = re.sub(r"[A-Za-z0-9_]+=\{\} ", r"", data_str)
 
-            trace_class.append_data(timestamp, comm, pid, cpu, data_str)
+            trace_class.append_data(timestamp, comm, pid, cpu, self.lines, data_str)
+            self.lines += 1
 
     def trace_hasnt_started(self):
         """Return a function that accepts a line and returns true if this line
@@ -231,7 +232,7 @@ is not part of the trace.
         started).
 
         """
-        return lambda x: False
+        return lambda line: not SPECIAL_FIELDS_RE.match(line)
 
     def trace_hasnt_finished(self):
         """Return a function that accepts a line and returns true if this line
@@ -269,6 +270,7 @@ is part of the trace.
 
         try:
             with open(trace_file) as fin:
+                self.lines = 0
                 self.__populate_data(
                     fin, cls_for_unique_word, window, abs_window)
         except FTraceParseError as e:
@@ -588,6 +590,6 @@ class FTrace(GenericFTrace):
                     setattr(self, "_" + match.group(1), match.group(2))
                     metadata_keys.remove(match.group(1))
 
-                if re.search(r"^\s+[^\[]+-\d+\s+\[\d+\]\s+\d+\.\d+:", line):
+                if SPECIAL_FIELDS_RE.match(line):
                     # Reached a valid trace line, abort metadata population
                     return
