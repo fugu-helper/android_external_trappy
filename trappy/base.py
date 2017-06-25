@@ -179,6 +179,12 @@ class Base(object):
         self.line_array.append(line)
         self.data_array.append(data)
 
+    def conv_to_int(self, value):
+        # Handle false-positives for negative numbers
+        if value.lstrip("-").isdigit():
+            value = int(value)
+        return value
+
     def generate_data_dict(self, data_str):
         data_dict = {}
         prev_key = None
@@ -190,10 +196,7 @@ class Base(object):
                 data_dict[prev_key] += ' ' + field
                 continue
             (key, value) = field.split('=', 1)
-            try:
-                value = int(value)
-            except ValueError:
-                pass
+            value = self.conv_to_int(value)
             data_dict[key] = value
             prev_key = key
         return data_dict
