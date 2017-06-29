@@ -215,8 +215,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                 return
 
             # Remove empty arrays from the trace
-            if "={}" in data_str:
-                data_str = re.sub(r"[A-Za-z0-9_]+=\{\} ", r"", data_str)
+            data_str = re.sub(r"[A-Za-z0-9_]+=\{\} ", r"", data_str)
 
             trace_class.append_data(timestamp, comm, pid, cpu, self.lines, data_str)
             self.lines += 1
