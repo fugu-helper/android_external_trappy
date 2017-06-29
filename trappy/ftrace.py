@@ -168,12 +168,20 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
     def __populate_data(self, fin, cls_for_unique_word):
         """Append to trace data from a txt trace"""
 
+        def contains_unique_word(line, unique_words=cls_for_unique_word.keys()):
+            for unique_word in unique_words:
+                if unique_word in line:
+                    return True
+            return False
+
         actual_trace = itertools.dropwhile(self.trace_hasnt_started(), fin)
         actual_trace = itertools.takewhile(self.trace_hasnt_finished(),
                                            actual_trace)
 
         for line in actual_trace:
-            trace_class = None
+            if not contains_unique_word(line):
+                self.lines += 1
+                continue
             for unique_word, cls in cls_for_unique_word.iteritems():
                 if unique_word in line:
                     trace_class = cls
@@ -181,8 +189,7 @@ subclassed by FTrace (for parsing FTrace coming from trace-cmd) and SysTrace."""
                         break
             else:
                 if not trace_class:
-                    self.lines += 1
-                    continue
+                    raise FTraceParseError("No unique word in '{}'".format(line))
 
             line = line[:-1]
 
