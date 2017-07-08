@@ -13,6 +13,9 @@
 # limitations under the License.
 #
 
+import pandas as pd
+import numpy as np
+
 """Generic functions that can be used in multiple places in trappy
 """
 
@@ -102,3 +105,55 @@ def handle_duplicate_index(data,
             dup_index_left += 1
 
     return data.reindex(new_index)
+
+def merge_dfs(pr_df, sec_df, pivot):
+    # Keep track of last secondary event
+    pivot_map = {}
+
+    # An array accumating dicts with merged data
+    merged_data = []
+    def df_fn(data):
+        # Store the latest secondary info
+        if data['Time'][0] == 'secondary':
+            pivot_map[data[pivot]] = data
+            # Get rid of primary/secondary labels
+            data['Time'] = data['Time'][1]
+            return
+
+        # Propogate latest secondary info
+        for key, value in data.iteritems():
+            if key == pivot:
+                continue
+            try:
+                if np.isnan(value):
+                    data[key] = pivot_map[data[pivot]][key]
+            except:
+                pass
+
+        # Get rid of primary/secondary labels
+        data['Time'] = data['Time'][1]
+        merged_data.append(data)
+
+    # Iterate fast over all rows in a data frame and apply fn
+    def apply_callbacks(df, fn):
+            iters = df.itertuples()
+            event_tuple = iters.next()
+
+            # Column names beginning with underscore will not be preserved in tuples
+            # due to constraints on namedtuple field names, so store mappings from
+            # column name to column number for each trace event.
+            col_idxs = { name: idx for idx, name in enumerate(['Time'] + df.columns.tolist()) }
+
+            while True:
+                if not event_tuple:
+                    break
+                event_dict = { col: event_tuple[idx] for col, idx in col_idxs.iteritems() }
+                fn(event_dict)
+                event_tuple = next(iters, None)
+
+    df = pd.concat([pr_df, sec_df], keys=['primary', 'secondary']).sort(columns='__line')
+    apply_callbacks(df, df_fn)
+    merged_df = pd.DataFrame.from_dict(merged_data)
+    merged_df.set_index('Time', inplace=True)
+
+    return merged_df
