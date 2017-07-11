@@ -415,7 +415,7 @@ is part of the trace.
 
         return ret
 
-    def apply_callbacks(self, fn_map):
+    def apply_callbacks(self, fn_map, *kwarg):
         """
         Apply callback functions to trace events in chronological order.
 
@@ -457,7 +457,12 @@ is part of the trace.
             event_dict = {
                 col: event_tuple[idx] for col, idx in col_idxs[event_name].iteritems()
             }
-            fn_map[event_name](event_dict)
+
+            if kwarg:
+                fn_map[event_name](event_dict, kwarg)
+            else:
+                fn_map[event_name](event_dict)
+
             event_row = next(iters[event_name], None)
             if event_row:
                 next_rows[event_name] = event_row
