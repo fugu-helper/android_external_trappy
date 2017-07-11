@@ -106,6 +106,29 @@ def handle_duplicate_index(data,
 
     return data.reindex(new_index)
 
+# Iterate fast over all rows in a data frame and apply fn
+def apply_callback(df, fn, *kwargs):
+    iters = df.itertuples()
+    event_tuple = iters.next()
+
+    # Column names beginning with underscore will not be preserved in tuples
+    # due to constraints on namedtuple field names, so store mappings from
+    # column name to column number for each trace event.
+    col_idxs = { name: idx for idx, name in enumerate(['Time'] + df.columns.tolist()) }
+
+    while True:
+        if not event_tuple:
+            break
+        event_dict = { col: event_tuple[idx] for col, idx in col_idxs.iteritems() }
+
+        if kwargs:
+            fn(event_dict, kwargs)
+        else:
+            fn(event_dict)
+
+        event_tuple = next(iters, None)
+
+
 def merge_dfs(pr_df, sec_df, pivot):
     # Keep track of last secondary event
     pivot_map = {}
@@ -134,25 +157,8 @@ def merge_dfs(pr_df, sec_df, pivot):
         data['Time'] = data['Time'][1]
         merged_data.append(data)
 
-    # Iterate fast over all rows in a data frame and apply fn
-    def apply_callbacks(df, fn):
-            iters = df.itertuples()
-            event_tuple = iters.next()
-
-            # Column names beginning with underscore will not be preserved in tuples
-            # due to constraints on namedtuple field names, so store mappings from
-            # column name to column number for each trace event.
-            col_idxs = { name: idx for idx, name in enumerate(['Time'] + df.columns.tolist()) }
-
-            while True:
-                if not event_tuple:
-                    break
-                event_dict = { col: event_tuple[idx] for col, idx in col_idxs.iteritems() }
-                fn(event_dict)
-                event_tuple = next(iters, None)
-
     df = pd.concat([pr_df, sec_df], keys=['primary', 'secondary']).sort(columns='__line')
-    apply_callbacks(df, df_fn)
+    apply_callback(df, df_fn)
     merged_df = pd.DataFrame.from_dict(merged_data)
     merged_df.set_index('Time', inplace=True)
 
