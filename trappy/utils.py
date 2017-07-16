@@ -147,11 +147,9 @@ def merge_dfs(pr_df, sec_df, pivot):
         for key, value in data.iteritems():
             if key == pivot:
                 continue
-            try:
-                if np.isnan(value):
-                    data[key] = pivot_map[data[pivot]][key]
-            except:
-                pass
+            # Fast check for if value is nan (faster than np.isnan + try/except)
+            if value != value and pivot_map.has_key(data[pivot]):
+                data[key] = pivot_map[data[pivot]][key]
 
         # Get rid of primary/secondary labels
         data['Time'] = data['Time'][1]
